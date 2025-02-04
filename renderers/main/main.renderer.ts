@@ -4,12 +4,14 @@ import { cwd } from 'process';
 import { join } from 'path';
 import { Settings } from '../settings/settings.renderer';
 
-import { app,
-         BrowserWindow,
-         nativeImage,
-         globalShortcut,
-         Menu,
-         ipcMain } from 'electron';
+import {
+    app,
+    BrowserWindow,
+    nativeImage,
+    globalShortcut,
+    Menu,
+    ipcMain
+} from 'electron';
 
 export interface resolution {
 
@@ -80,7 +82,7 @@ export class Renderer {
                 }
             })
         })
-        .on('window-all-closed', () => { app.quit() })
+            .on('window-all-closed', () => { app.quit() })
     }
 
     /** Create a new renderer window. */
@@ -103,43 +105,94 @@ export class Renderer {
         });
 
         process.nextTick(() => this.loadSettings());
-        
+
     }
 
     /**
      * Inject a JavaScript code into the renderer process to patch events and add some features.
      * @param script Type of script to be injected.
      * */
-    private async injectJSCode(script: 'all' | 'patchs' | 'titlebar' = 'all') {
-
+    private async injectJSCode(script: 'all' | 'patchs' | 'titlebar' = 'all') {
         try {
-
             if (this.jsic === '') {
                 this.jsic = await readFile(join(__dirname, 'injection.js'), { encoding: 'utf8' });
             }
 
             if (platform() === 'darwin' && this.titleBar === '') {
                 this.titleBar = await readFile(join(__dirname, 'titleBar.js'), { encoding: 'utf8' });
-                
             }
+
+            const adBypassScript = `
+            (function monitorYouTubeAds() {
+                const { ipcRenderer } = require('electron');
+                
+                function logToElectronConsole(...args) {
+                    ipcRenderer.send('renderer-log', ...args);
+                }
+            
+                // Holds our video element reference
+                let video = null;
+            
+                // Poll for the video element first.
+                function waitForVideo() {
+                    video = document.querySelector('video');
+                    if (video) {
+                        logToElectronConsole("Video element found. Starting MutationObserver.");
+                        // Start observing DOM changes to watch for the countdown element.
+                        setupMutationObserver();
+                    } else {
+                        logToElectronConsole("Waiting for video element...");
+                        setTimeout(waitForVideo, 1000);
+                    }
+                }
+            
+                // Sets up a MutationObserver to monitor changes in the DOM.
+                function setupMutationObserver() {
+                    const observer = new MutationObserver((mutations) => {
+                        // Every time a mutation occurs, check for the countdown element.
+                        const countdownEl = document.querySelector('.ytlr-skip-ad-timer-renderer__countdown');
+                        if (countdownEl) {
+                            // If the countdown element is present, assume an ad is playing.
+                            if (video.playbackRate !== 8.0) {
+                                video.playbackRate = 8.0;
+                                logToElectronConsole("Ad countdown detected (" + countdownEl.innerText + "). Setting playback rate to 8x.");
+                            } else {
+                                logToElectronConsole("Ad countdown still active (" + countdownEl.innerText + ").");
+                            }
+                        } else {
+                            // If no countdown element exists, assume main video content is active.
+                            if (video.playbackRate !== 1.0) {
+                                video.playbackRate = 1.0;
+                                logToElectronConsole("No ad countdown detected. Restoring normal playback rate.");
+                            }
+                        }
+                    });
+            
+                    // Start observing changes in the document body (and its subtree)
+                    observer.observe(document.body, { childList: true, subtree: true });
+                }
+            
+                waitForVideo();
+            })();
+            `;
+            
+
 
             if (script === 'all') {
                 this.window.webContents.executeJavaScript(this.jsic);
-                platform() === 'darwin' ? this.window.webContents.executeJavaScript(this.titleBar) : false;
-                
+                this.window.webContents.executeJavaScript(adBypassScript); // Inject the ad speed-up script
+                if (platform() === 'darwin') this.window.webContents.executeJavaScript(this.titleBar);
             } else if (script === 'patchs') {
                 this.window.webContents.executeJavaScript(this.jsic);
-
+                this.window.webContents.executeJavaScript(adBypassScript);
             } else if (script === 'titlebar') {
-                platform() === 'darwin' ? this.window.webContents.executeJavaScript(this.titleBar) : false;
-
+                if (platform() === 'darwin') this.window.webContents.executeJavaScript(this.titleBar);
             }
-            
         } catch (error) {
             debugger;
-            // throw new Error(error as unknown as any);
         }
     }
+
 
     public setMaxRes(params: { width: number, height: number, reload: boolean }) {
 
@@ -153,7 +206,7 @@ export class Renderer {
         } else this.updateWindowParams();
 
     }
-    
+
     /** Emulate a screen with assigned parameters */
     private setResEmulator(emuWidth: number = 3840, emuHeight: number = 2160) {
 
@@ -173,17 +226,17 @@ export class Renderer {
     private calcEmulatedDisplay(emuWidth: number, emuHeight: number) {
 
         // Get the current window size.
-        const [ width, height ] = this.window.getSize();
+        const [width, height] = this.window.getSize();
 
         this.window.webContents.disableDeviceEmulation();
-        
+
         this.window.webContents.enableDeviceEmulation({
-            screenSize:         { width: emuWidth, height: emuHeight },
-            viewSize:           { width: width / emuWidth, height: height / emuHeight },
-            scale:              width / emuWidth,
-            screenPosition:     'mobile',
-            viewPosition:       { x: 0.5, y: 0.5 },
-            deviceScaleFactor:  0
+            screenSize: { width: emuWidth, height: emuHeight },
+            viewSize: { width: width / emuWidth, height: height / emuHeight },
+            scale: width / emuWidth,
+            screenPosition: 'mobile',
+            viewPosition: { x: 0.5, y: 0.5 },
+            deviceScaleFactor: 0
         })
 
     }
@@ -207,7 +260,7 @@ export class Renderer {
         globalShortcut.register('ctrl+d', () => { this.window.webContents.toggleDevTools(); })
 
         globalShortcut.register('ctrl+a', () => this.cursor = null);
-        
+
     }
 
     /**
@@ -216,24 +269,24 @@ export class Renderer {
      * @param key Key of the object to be stored in the localStorage.
      * @param value Value to be set for the given key.
      */
-    public async localStorageQuery(type: 'set', key: string, value: any): Promise<any>;
-    public async localStorageQuery(type: 'delete', key: any): Promise<any>;
-    public async localStorageQuery(type: 'get', key: any): Promise<any>;
-    public async localStorageQuery(type: 'clear'): Promise<any>;
-    public async localStorageQuery(type: 'raw', data: string): Promise<any>;
-    public async localStorageQuery(type: 'get' | 'set' | 'delete' | 'clear' | 'raw', key?: string, value?: any, data?: string): Promise<any> {
+    public async localStorageQuery(type: 'set', key: string, value: any): Promise<any>;
+    public async localStorageQuery(type: 'delete', key: any): Promise<any>;
+    public async localStorageQuery(type: 'get', key: any): Promise<any>;
+    public async localStorageQuery(type: 'clear'): Promise<any>;
+    public async localStorageQuery(type: 'raw', data: string): Promise<any>;
+    public async localStorageQuery(type: 'get' | 'set' | 'delete' | 'clear' | 'raw', key?: string, value?: any, data?: string): Promise<any> {
 
         if (type === 'get' || type === 'set' || type === 'delete' || type === 'clear' || type === 'raw') {
 
             let query = 'localStorage.';
 
-            if (type === 'get') query += `getItem('${ key }')`
+            if (type === 'get') query += `getItem('${key}')`
             else if (type === 'set') {
-                
-                if (typeof value === 'object') value = `'${JSON.stringify(value)}'`;
-                query += `setItem('${ key }', ${ value })`;
 
-            } else if (type === 'delete') query += `removeItem('${ key }')`
+                if (typeof value === 'object') value = `'${JSON.stringify(value)}'`;
+                query += `setItem('${key}', ${value})`;
+
+            } else if (type === 'delete') query += `removeItem('${key}')`
             else if (type === 'clear') query += 'clear()'
             else if (type === 'raw') query = data as string;
 
@@ -245,13 +298,13 @@ export class Renderer {
                     const resolver = await unresolvedQuery;
                     const parsed = JSON.parse(resolver);
                     return Promise.resolve(parsed);
-                    
+
                 } catch (error) {
                     return unresolvedQuery;
                 }
             } else return unresolvedQuery;
 
-        } else return Promise.reject('unknown query type'); 
+        } else return Promise.reject('unknown query type');
     }
 
     private listenWindowMoveEvents() {
@@ -264,7 +317,7 @@ export class Renderer {
         const fullscreen = this.window.isFullScreen();
         const cursor = this._cursor ? true : false;
 
-        return { bounds, fullscreen, cursor  } as windowParams;
+        return { bounds, fullscreen, cursor } as windowParams;
 
     }
 
@@ -276,17 +329,17 @@ export class Renderer {
     private loadSettings() {
 
         this.localStorageQuery('get', 'windowParams')
-        .then((data: windowParams) => {
+            .then((data: windowParams) => {
 
-            this.window.setBounds(data.bounds)
-            this.window.fullScreen = data.fullscreen;
-            this.cursor = data.cursor;
+                this.window.setBounds(data.bounds)
+                this.window.fullScreen = data.fullscreen;
+                this.cursor = data.cursor;
 
-            this.window.on('resized', () => {
-                this.updateWindowParams();
+                this.window.on('resized', () => {
+                    this.updateWindowParams();
+                });
+
             });
-
-        });
 
         this.localStorageQuery('get', 'maxRes')
             .then((data: resolution) => {
@@ -316,40 +369,40 @@ export class Renderer {
         if (value === '__DFT__') url = '';
 
         this.window.loadURL(this._url + url, { userAgent: this.userAgent })
-        .then(() => {
-            this.injectJSCode();
-        })
-        .catch(async() => {
+            .then(() => {
+                this.injectJSCode();
+            })
+            .catch(async () => {
 
-            ipcMain.once('restored', () => { this.url = value });
+                ipcMain.once('restored', () => { this.url = value });
 
-            this.injectJSCode('titlebar');
-            const offline = await readFile(join(__dirname, 'offline_banner.js'), { encoding: 'utf8' });
-            this.window.webContents.executeJavaScript(offline);
+                this.injectJSCode('titlebar');
+                const offline = await readFile(join(__dirname, 'offline_banner.js'), { encoding: 'utf8' });
+                this.window.webContents.executeJavaScript(offline);
 
-        })
+            })
     }
 
-    public set urlByDial (value: string) {
+    public set urlByDial(value: string) {
         if (typeof value !== 'string') return;
         if (value.length < 1) return;
-    
+
         this.window.fullScreen = true;
 
         this.window.webContents.loadURL(this._url + value, { userAgent: this.userAgent })
-        .then(() => {
-            this.injectJSCode();
-        })
-        // This should never happen...
-        .catch(async() => {
+            .then(() => {
+                this.injectJSCode();
+            })
+            // This should never happen...
+            .catch(async () => {
 
-            ipcMain.once('restored', () => { this.urlByDial = value });
-            
-            this.injectJSCode('titlebar');
-            const offline = await readFile(join(__dirname, 'offline_banner.js'), { encoding: 'utf8' });
-            this.window.webContents.executeJavaScript(offline);
+                ipcMain.once('restored', () => { this.urlByDial = value });
 
-        })
+                this.injectJSCode('titlebar');
+                const offline = await readFile(join(__dirname, 'offline_banner.js'), { encoding: 'utf8' });
+                this.window.webContents.executeJavaScript(offline);
+
+            })
     }
 
     public set fullScreen(value: boolean | null) {
@@ -362,7 +415,7 @@ export class Renderer {
             this.updateWindowParams();
         }
     }
-    
+
     /** Toggle cursor visibility */
     public set cursor(value: boolean | null) {
         if (typeof value !== 'boolean') this._cursor = !this._cursor
@@ -378,5 +431,5 @@ export class Renderer {
 
         this.updateWindowParams();
     }
-    
+
 }
