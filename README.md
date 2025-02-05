@@ -1,9 +1,14 @@
+> [!TIP]
+> This fork blocks Ad Telemetry & Cross-Site Tracking, and includes built in Ad Fast-Forward:
+  Instead of blocking video ads at the newtork level ads are played at 8× speed and automatically skipped when able. This preserves the YT account's ad viewing   statistics while reducing wait time.
 <div align="center">
 <img src="./build/icon.png" width=90px>
 
 # **YouTube TV**
 [![Downloads](https://img.shields.io/github/downloads/marcosrg9/YouTubeTV/total.svg?color=FF0000&label=Total%20downloads)](https://github.com/marcosrg9/YouTubeTV/releases/)
 [![Downloads](https://img.shields.io/github/downloads/marcosrg9/YouTubeTV/v2.4.1/total.svg?color=blue&label=2.4.1%20Downloads)](https://github.com/marcosrg9/YouTubeTV/releases/tag/v2.4.1)
+
+
 
 Simple YouTube TV Client for desktop based on [electron](https://www.electronjs.org/). You can connect a compatible device such as a phone or computer with Google Chrome and send videos to the app for viewing, just like on ChromeCast or smart TVs with YouTube.
 
@@ -26,6 +31,15 @@ Mozilla/5.0 (X11; Linux i686) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0
 ```
 It can use ```npm start``` or else ```npx electron .``` .
 If you already have electron installed globally, you can start the app with ```electron .```
+
+## 📦 Builds with Ad and cross-site blocking
+The project can be downloaded already built and ready to use for Windows. Build it yourself from source for Linux, MaxOS.
+
+| Platform           |   Architecture   |  Link  |
+|--------------------|:----------------:|:------:|
+| Windows            | x32/x64          | [Download](https://github.com/JakeTurner616/YouTubeTV/releases/download/2.4.1-ab/YouTube.TV.Setup.2.4.1-ab.exe) |
+| Linux/MAC (source) | x32/x64          | [Download](https://github.com/JakeTurner616/YouTubeTV/archive/refs/tags/2.4.1-ab.tar.gz) |
+
 
 ## 📦 Builds
 The project can be downloaded already built and ready to use. Available for Linux, macOS and Windows. On x86, x84 and ARM architectures.
