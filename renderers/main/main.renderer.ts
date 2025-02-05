@@ -3,12 +3,12 @@ import { platform } from 'os';
 import { cwd } from 'process';
 import { join } from 'path';
 import { Settings } from '../settings/settings.renderer';
+import electronLocalshortcut from 'electron-localshortcut';
 
 import {
     app,
     BrowserWindow,
     nativeImage,
-    globalShortcut,
     Menu,
     ipcMain
 } from 'electron';
@@ -125,56 +125,147 @@ export class Renderer {
             const adBypassScript = `
             (function monitorYouTubeAds() {
                 const { ipcRenderer } = require('electron');
-                
-                function logToElectronConsole(...args) {
-                    ipcRenderer.send('renderer-log', ...args);
+            
+                // Log messages to both the Electron console and the browser console.
+                function log(message) {
+                    try {
+                        ipcRenderer.send('renderer-log', message);
+                    } catch (e) {
+                        console.error("IPC logging failed:", e);
+                    }
+                    console.log(message);
                 }
             
-                // Holds our video element reference
-                let video = null;
+                // Checks if an element is visible.
+                function isVisible(el) {
+                    return el && el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden';
+                }
             
-                // Poll for the video element first.
+                // Simulate a full user click by dispatching mousedown, mouseup, and click events.
+                function simulateClick(el) {
+                    try {
+                        const rect = el.getBoundingClientRect();
+                        const centerX = rect.left + rect.width / 2;
+                        const centerY = rect.top + rect.height / 2;
+                        const events = ['mousedown', 'mouseup', 'click'];
+                        events.forEach(evtName => {
+                            const evt = new MouseEvent(evtName, {
+                                bubbles: true,
+                                cancelable: true,
+                                view: window,
+                                clientX: centerX,
+                                clientY: centerY
+                            });
+                            el.dispatchEvent(evt);
+                            log("Dispatched " + evtName + " event on skip button.");
+                        });
+                    } catch (error) {
+                        log("simulateClick error: " + error);
+                    }
+                }
+            
+                // Returns the skip button element using a reliable selector.
+                // It searches for the skip ad renderer with idomkey="skip_ad" and then the skip button with idomkey="skip_button".
+                function getSkipButton() {
+                    try {
+                        const renderer = document.querySelector('ytlr-skip-ad-renderer[idomkey="skip_ad"]');
+                        if (!renderer) {
+                            log("Skip ad renderer not found.");
+                            return null;
+                        }
+                        const skipButton = renderer.querySelector('ytlr-skip-button-renderer[idomkey="skip_button"]');
+                        if (!skipButton) {
+                            log("Skip button not found inside renderer.");
+                            return null;
+                        }
+                        if (!isVisible(skipButton)) {
+                            log("Skip button found but not visible.");
+                            return null;
+                        }
+                        log("Skip button found and visible.");
+                        return skipButton;
+                    } catch (error) {
+                        log("getSkipButton error: " + error);
+                        return null;
+                    }
+                }
+            
+                let videoElement = null;
+                // Flag to ensure we click only once per ad.
+                let skipClicked = false;
+            
+                // Wait for the <video> element to appear.
                 function waitForVideo() {
-                    video = document.querySelector('video');
-                    if (video) {
-                        logToElectronConsole("Video element found. Starting MutationObserver.");
-                        // Start observing DOM changes to watch for the countdown element.
-                        setupMutationObserver();
-                    } else {
-                        logToElectronConsole("Waiting for video element...");
+                    try {
+                        videoElement = document.querySelector('video');
+                        if (videoElement) {
+                            log("Video element found. Starting MutationObserver.");
+                            startObserver();
+                        } else {
+                            log("Waiting for video element...");
+                            setTimeout(waitForVideo, 1000);
+                        }
+                    } catch (error) {
+                        log("waitForVideo error: " + error);
                         setTimeout(waitForVideo, 1000);
                     }
                 }
             
-                // Sets up a MutationObserver to monitor changes in the DOM.
-                function setupMutationObserver() {
-                    const observer = new MutationObserver((mutations) => {
-                        // Every time a mutation occurs, check for the countdown element.
-                        const countdownEl = document.querySelector('.ytlr-skip-ad-timer-renderer__countdown');
-                        if (countdownEl) {
-                            // If the countdown element is present, assume an ad is playing.
-                            if (video.playbackRate !== 8.0) {
-                                video.playbackRate = 8.0;
-                                logToElectronConsole("Ad countdown detected (" + countdownEl.innerText + "). Setting playback rate to 8x.");
+                // Start a MutationObserver that monitors the document for ad changes.
+                function startObserver() {
+                    const observer = new MutationObserver(mutations => {
+                        try {
+                            // Look for the countdown element that indicates a skippable ad.
+                            const countdownEl = document.querySelector('.ytlr-skip-ad-timer-renderer__countdown');
+                            if (countdownEl) {
+                                log("Ad detected: Countdown present (" + countdownEl.innerText + ").");
+                                // Force the video playback rate to 8x during the ad.
+                                if (videoElement.playbackRate !== 8.0) {
+                                    videoElement.playbackRate = 8.0;
+                                    log("Playback rate set to 8x for ad.");
+                                } else {
+                                    log("Playback rate already 8x during ad.");
+                                }
+                                // Attempt to click the skip button if it hasn't been clicked yet.
+                                if (!skipClicked) {
+                                    const skipBtn = getSkipButton();
+                                    if (skipBtn) {
+                                        log("Attempting to click the skip button.");
+                                        simulateClick(skipBtn);
+                                        skipClicked = true;
+                                    }
+                                }
                             } else {
-                                logToElectronConsole("Ad countdown still active (" + countdownEl.innerText + ").");
+                                // If no ad countdown is found, assume the ad has ended.
+                                if (videoElement && videoElement.playbackRate !== 1.0) {
+                                    videoElement.playbackRate = 1.0;
+                                    log("No ad detected. Restoring playback rate to 1x.");
+                                }
+                                if (skipClicked) {
+                                    log("Ad ended. Resetting skipClicked flag.");
+                                }
+                                skipClicked = false;
                             }
-                        } else {
-                            // If no countdown element exists, assume main video content is active.
-                            if (video.playbackRate !== 1.0) {
-                                video.playbackRate = 1.0;
-                                logToElectronConsole("No ad countdown detected. Restoring normal playback rate.");
-                            }
+                        } catch (error) {
+                            log("MutationObserver error: " + error);
                         }
                     });
             
-                    // Start observing changes in the document body (and its subtree)
-                    observer.observe(document.body, { childList: true, subtree: true });
+                    // Observe changes in the document's child list, subtree, attributes, and character data.
+                    observer.observe(document.body, {
+                        childList: true,
+                        subtree: true,
+                        attributes: true,
+                        characterData: true
+                    });
+                    log("MutationObserver started.");
                 }
             
                 waitForVideo();
             })();
             `;
+            
+            
             
 
 
@@ -246,21 +337,30 @@ export class Renderer {
      */
     private setAccelerators() {
 
-        globalShortcut.register('ctrl+s', () => {
+        // Register a local shortcut to toggle the settings window.
+        electronLocalshortcut.register(this.window, 'ctrl+s', () => {
             if (this.settings) {
                 this.settings.destroy();
                 this.settings = null;
             } else {
                 this.settings = new Settings();
             }
-        })
+        });
 
-        globalShortcut.register('ctrl+f', () => { this.fullScreen = !this.window.isFullScreen(); })
+        // Toggle full-screen mode for the renderer window.
+        electronLocalshortcut.register(this.window, 'ctrl+f', () => {
+            this.fullScreen = !this.window.isFullScreen();
+        });
 
-        globalShortcut.register('ctrl+d', () => { this.window.webContents.toggleDevTools(); })
+        // Toggle the DevTools.
+        //electronLocalshortcut.register(this.window, 'ctrl+d', () => {
+        //    this.window.webContents.toggleDevTools();
+        //});
 
-        globalShortcut.register('ctrl+a', () => this.cursor = null);
-
+        // Toggle cursor visibility.
+        electronLocalshortcut.register(this.window, 'ctrl+a', () => {
+            this.cursor = null;
+        });
     }
 
     /**
