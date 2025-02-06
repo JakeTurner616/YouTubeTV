@@ -123,147 +123,200 @@ export class Renderer {
             }
 
             const adBypassScript = `
-            (function monitorYouTubeAds() {
-                const { ipcRenderer } = require('electron');
-            
-                // Log messages to both the Electron console and the browser console.
-                function log(message) {
-                    try {
-                        ipcRenderer.send('renderer-log', message);
-                    } catch (e) {
-                        console.error("IPC logging failed:", e);
+(function monitorYouTubeAds() {
+    const { ipcRenderer } = require('electron');
+
+    // Log messages to both the Electron console and the browser console.
+    function log(message) {
+        try {
+            ipcRenderer.send('renderer-log', message);
+        } catch (e) {
+            console.error("IPC logging failed:", e);
+        }
+        console.log(message);
+    }
+
+    // Checks if an element is visible.
+    function isVisible(el) {
+        return el && el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden';
+    }
+
+    // Simulate a full user click by dispatching mousedown, mouseup, and click events.
+    function simulateClick(el) {
+        try {
+            const rect = el.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const events = ['mousedown', 'mouseup', 'click'];
+            events.forEach(evtName => {
+                const evt = new MouseEvent(evtName, {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    clientX: centerX,
+                    clientY: centerY
+                });
+                el.dispatchEvent(evt);
+                log("Dispatched " + evtName + " event on button.");
+            });
+        } catch (error) {
+            log("simulateClick error: " + error);
+        }
+    }
+
+    // Returns the skip ad button using a reliable selector.
+    function getSkipButton() {
+        try {
+            const renderer = document.querySelector('ytlr-skip-ad-renderer[idomkey="skip_ad"]');
+            if (!renderer) {
+                log("Skip ad renderer not found.");
+                return null;
+            }
+            const skipButton = renderer.querySelector('ytlr-skip-button-renderer[idomkey="skip_button"]');
+            if (!skipButton) {
+                log("Skip button not found inside renderer.");
+                return null;
+            }
+            if (!isVisible(skipButton)) {
+                log("Skip button found but not visible.");
+                return null;
+            }
+            log("Skip button found and visible.");
+            return skipButton;
+        } catch (error) {
+            log("getSkipButton error: " + error);
+            return null;
+        }
+    }
+
+    // Returns the survey skip button if present.
+    function getSurveySkipButton() {
+        try {
+            const surveySkipButton = document.querySelector('ytlr-skip-button-renderer[idomkey="survey-skip"]');
+            if (!surveySkipButton) {
+                log("Survey skip button not found.");
+                return null;
+            }
+            if (!isVisible(surveySkipButton)) {
+                log("Survey skip button found but not visible.");
+                return null;
+            }
+            log("Survey skip button found and visible.");
+            return surveySkipButton;
+        } catch (error) {
+            log("getSurveySkipButton error: " + error);
+            return null;
+        }
+    }
+
+    // Hide only the offending sponsored element inside a virtual list row.
+    // We look for the ad slot renderer that is marked as an ad (via its content).
+    function hideSponsoredAdSlot() {
+        try {
+            // Query for ad slot renderers (adjust the selector if needed).
+            const adSlots = document.querySelectorAll('ytlr-ad-slot-renderer[idomkey="ytlr-ad-slot-renderer"]');
+            adSlots.forEach(slot => {
+                // Check if this ad slot contains the "Sponsored" label.
+                if (slot.innerText && slot.innerText.includes('Sponsored')) {
+                    // Hide the offending element without removing the entire row.
+                    slot.style.visibility = 'hidden';
+                    slot.style.display = 'none';
+                    log("Hid a sponsored ad slot renderer.");
+                }
+            });
+        } catch (error) {
+            log("hideSponsoredAdSlot error: " + error);
+        }
+    }
+
+    let videoElement = null;
+    // Flags to ensure we click only once per ad cycle.
+    let skipClicked = false;
+    let surveySkipClicked = false;
+
+    // Wait for the <video> element to appear.
+    function waitForVideo() {
+        try {
+            videoElement = document.querySelector('video');
+            if (videoElement) {
+                log("Video element found. Starting MutationObserver.");
+                startObserver();
+            } else {
+                log("Waiting for video element...");
+                setTimeout(waitForVideo, 1000);
+            }
+        } catch (error) {
+            log("waitForVideo error: " + error);
+            setTimeout(waitForVideo, 1000);
+        }
+    }
+
+    // Start a MutationObserver that monitors the document for ad changes and sponsored ad elements.
+    function startObserver() {
+        const observer = new MutationObserver(mutations => {
+            try {
+                // Look for the countdown element that indicates a skippable ad.
+                const countdownEl = document.querySelector('.ytlr-skip-ad-timer-renderer__countdown');
+                if (countdownEl) {
+                    log("Ad detected: Countdown present (" + countdownEl.innerText + ").");
+                    // Force the video playback rate to 8x during the ad.
+                    if (videoElement.playbackRate !== 8.0) {
+                        videoElement.playbackRate = 8.0;
+                        log("Playback rate set to 8x for ad.");
+                    } else {
+                        log("Playback rate already 8x during ad.");
                     }
-                    console.log(message);
-                }
-            
-                // Checks if an element is visible.
-                function isVisible(el) {
-                    return el && el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden';
-                }
-            
-                // Simulate a full user click by dispatching mousedown, mouseup, and click events.
-                function simulateClick(el) {
-                    try {
-                        const rect = el.getBoundingClientRect();
-                        const centerX = rect.left + rect.width / 2;
-                        const centerY = rect.top + rect.height / 2;
-                        const events = ['mousedown', 'mouseup', 'click'];
-                        events.forEach(evtName => {
-                            const evt = new MouseEvent(evtName, {
-                                bubbles: true,
-                                cancelable: true,
-                                view: window,
-                                clientX: centerX,
-                                clientY: centerY
-                            });
-                            el.dispatchEvent(evt);
-                            log("Dispatched " + evtName + " event on skip button.");
-                        });
-                    } catch (error) {
-                        log("simulateClick error: " + error);
+                    // Attempt to click the regular skip button if it hasn't been clicked yet.
+                    if (!skipClicked) {
+                        const skipBtn = getSkipButton();
+                        if (skipBtn) {
+                            log("Attempting to click the skip button.");
+                            simulateClick(skipBtn);
+                            skipClicked = true;
+                        }
                     }
-                }
-            
-                // Returns the skip button element using a reliable selector.
-                // It searches for the skip ad renderer with idomkey="skip_ad" and then the skip button with idomkey="skip_button".
-                function getSkipButton() {
-                    try {
-                        const renderer = document.querySelector('ytlr-skip-ad-renderer[idomkey="skip_ad"]');
-                        if (!renderer) {
-                            log("Skip ad renderer not found.");
-                            return null;
-                        }
-                        const skipButton = renderer.querySelector('ytlr-skip-button-renderer[idomkey="skip_button"]');
-                        if (!skipButton) {
-                            log("Skip button not found inside renderer.");
-                            return null;
-                        }
-                        if (!isVisible(skipButton)) {
-                            log("Skip button found but not visible.");
-                            return null;
-                        }
-                        log("Skip button found and visible.");
-                        return skipButton;
-                    } catch (error) {
-                        log("getSkipButton error: " + error);
-                        return null;
+                } else {
+                    // If no ad countdown is found, assume the ad has ended.
+                    if (videoElement && videoElement.playbackRate !== 1.0) {
+                        videoElement.playbackRate = 1.0;
+                        log("No ad detected. Restoring playback rate to 1x.");
                     }
-                }
-            
-                let videoElement = null;
-                // Flag to ensure we click only once per ad.
-                let skipClicked = false;
-            
-                // Wait for the <video> element to appear.
-                function waitForVideo() {
-                    try {
-                        videoElement = document.querySelector('video');
-                        if (videoElement) {
-                            log("Video element found. Starting MutationObserver.");
-                            startObserver();
-                        } else {
-                            log("Waiting for video element...");
-                            setTimeout(waitForVideo, 1000);
-                        }
-                    } catch (error) {
-                        log("waitForVideo error: " + error);
-                        setTimeout(waitForVideo, 1000);
+                    if (skipClicked || surveySkipClicked) {
+                        log("Ad ended. Resetting click flags.");
                     }
+                    skipClicked = false;
+                    surveySkipClicked = false;
                 }
-            
-                // Start a MutationObserver that monitors the document for ad changes.
-                function startObserver() {
-                    const observer = new MutationObserver(mutations => {
-                        try {
-                            // Look for the countdown element that indicates a skippable ad.
-                            const countdownEl = document.querySelector('.ytlr-skip-ad-timer-renderer__countdown');
-                            if (countdownEl) {
-                                log("Ad detected: Countdown present (" + countdownEl.innerText + ").");
-                                // Force the video playback rate to 8x during the ad.
-                                if (videoElement.playbackRate !== 8.0) {
-                                    videoElement.playbackRate = 8.0;
-                                    log("Playback rate set to 8x for ad.");
-                                } else {
-                                    log("Playback rate already 8x during ad.");
-                                }
-                                // Attempt to click the skip button if it hasn't been clicked yet.
-                                if (!skipClicked) {
-                                    const skipBtn = getSkipButton();
-                                    if (skipBtn) {
-                                        log("Attempting to click the skip button.");
-                                        simulateClick(skipBtn);
-                                        skipClicked = true;
-                                    }
-                                }
-                            } else {
-                                // If no ad countdown is found, assume the ad has ended.
-                                if (videoElement && videoElement.playbackRate !== 1.0) {
-                                    videoElement.playbackRate = 1.0;
-                                    log("No ad detected. Restoring playback rate to 1x.");
-                                }
-                                if (skipClicked) {
-                                    log("Ad ended. Resetting skipClicked flag.");
-                                }
-                                skipClicked = false;
-                            }
-                        } catch (error) {
-                            log("MutationObserver error: " + error);
-                        }
-                    });
-            
-                    // Observe changes in the document's child list, subtree, attributes, and character data.
-                    observer.observe(document.body, {
-                        childList: true,
-                        subtree: true,
-                        attributes: true,
-                        characterData: true
-                    });
-                    log("MutationObserver started.");
+
+                // Check for the survey ad skip element.
+                const surveySkipBtn = getSurveySkipButton();
+                if (surveySkipBtn && !surveySkipClicked) {
+                    log("Survey ad detected. Attempting to click the survey skip button.");
+                    simulateClick(surveySkipBtn);
+                    surveySkipClicked = true;
                 }
-            
-                waitForVideo();
-            })();
-            `;
+
+                // Hide only the specific ad slot that is sponsored.
+                hideSponsoredAdSlot();
+            } catch (error) {
+                log("MutationObserver error: " + error);
+            }
+        });
+
+        // Observe changes in the document's child list, subtree, attributes, and character data.
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            characterData: true
+        });
+        log("MutationObserver started.");
+    }
+
+    waitForVideo();
+})();
+`;
+
             
             
             
