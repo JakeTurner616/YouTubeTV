@@ -22,8 +22,7 @@ class Main {
     public dial: Dial;
     /** Contains the main renderer instance. */
     public renderer: Renderer;
-    /** Contains the main application window. */
-    public mainWindow: BrowserWindow | null = null;
+
     /** Contains uBlock Origin Core filtering engine. */
     private snfe: any = null;
 
@@ -42,14 +41,7 @@ class Main {
                 globalThis.fetch = fetch as any;
             }
 
-            this.mainWindow = new BrowserWindow({
-                width: 1200,
-                height: 800,
-                webPreferences: {
-                    nodeIntegration: false,
-                    contextIsolation: true,
-                }
-            });
+
 
             try {
                 // ✅ Import `@gorhill/ubo-core` dynamically
@@ -104,7 +96,7 @@ class Main {
             );
 
             // ✅ Load YouTube TV
-            this.mainWindow.loadURL('https://tv.youtube.com/');
+            //this.mainWindow.loadURL('https://tv.youtube.com/');
         });
 
         app.on('window-all-closed', () => {
