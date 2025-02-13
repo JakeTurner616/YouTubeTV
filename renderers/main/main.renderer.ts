@@ -180,7 +180,7 @@ export class Renderer {
             try {
                 const surveySkipButton = document.querySelector('ytlr-skip-button-renderer[idomkey="survey-skip"]');
                 if (!surveySkipButton) {
-                    log("Survey skip button not found.");
+                    // Survey skip button not found; silently ignore.
                     return null;
                 }
                 if (!isVisible(surveySkipButton)) {
@@ -232,6 +232,11 @@ export class Renderer {
                     const countdownEl = document.querySelector('.ytlr-skip-ad-timer-renderer__countdown');
                     if (countdownEl) {
                         log("Ad detected: Countdown present (" + countdownEl.innerText + ").");
+                        // Immediately mute the video to prevent any audio popping.
+                        if (videoElement && !videoElement.muted) {
+                            videoElement.muted = true;
+                            log("Video muted immediately upon ad detection.");
+                        }
                         if (videoElement.playbackRate !== 8.0) {
                             videoElement.playbackRate = 8.0;
                             log("Playback rate set to 8x for ad.");
@@ -247,9 +252,14 @@ export class Renderer {
                             }
                         }
                     } else {
+                        // Restore normal playback and unmute once the ad is over.
                         if (videoElement && videoElement.playbackRate !== 1.0) {
                             videoElement.playbackRate = 1.0;
                             log("No ad detected. Restoring playback rate to 1x.");
+                        }
+                        if (videoElement && videoElement.muted) {
+                            videoElement.muted = false;
+                            log("Video unmuted after ad.");
                         }
                         if (skipClicked || surveySkipClicked) {
                             log("Ad ended. Resetting click flags.");
@@ -278,7 +288,8 @@ export class Renderer {
         }
         waitForVideo();
     })();
-    `;
+`;
+        
     
             // gamepad input handling script
             const gamepadScript = `
