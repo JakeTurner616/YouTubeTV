@@ -1,7 +1,7 @@
 {
     "name": "youtube-tv",
     "productName": "YouTube TV",
-    "version": "2.4.1-ab-0.2",
+    "version": "2.4.1-ab-0.3",
     "description": "Simple YouTube TV client for desktop based on electron.",
     "main": "main.js",
     "scripts": {
@@ -28,7 +28,8 @@
         "normalize-url": "^7.0.2",
         "path-parse": "^1.0.7",
         "peer-dial": "0.0.8",
-        "trim-newlines": "^4.0.2"
+        "trim-newlines": "^4.0.2",
+        "youtube-tv": "file:"
     },
     "devDependencies": {
         "@types/electron-localshortcut": "^3.1.3",
