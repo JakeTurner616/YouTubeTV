@@ -37,8 +37,8 @@ The project can be downloaded already built and ready to use for Windows. Build 
 
 | Platform           |   Architecture   |  Link  |
 |--------------------|:----------------:|:------:|
-| Windows            | x32/x64          | [Download](https://github.com/JakeTurner616/YouTubeTV/releases/download/2.4.1-ab-0.2/YouTube.TV.Setup.2.4.1-ab-0.2.exe) |
-| Linux/MAC (source) | x32/x64          | [Download](https://github.com/JakeTurner616/YouTubeTV/archive/refs/tags/2.4.1-ab-0.2.tar.gz) |
+| Windows            | x32/x64          | [Download](https://github.com/JakeTurner616/YouTubeTV/releases/download/2.4.1-ab-0.3/YouTube.TV.Setup.2.4.1-ab-0.3.exe) |
+| Linux/MAC (source) | x32/x64          | [Download](https://github.com/JakeTurner616/YouTubeTV/archive/refs/tags/2.4.1-ab-0.3.tar.gz) |
 
 
 ## 📦 Builds
