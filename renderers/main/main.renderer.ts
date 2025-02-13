@@ -14,20 +14,16 @@ import {
 } from 'electron';
 
 export interface resolution {
-
     /** Screen width */
-    width: number
+    width: number;
     /** Screen height */
-    height: number
-
+    height: number;
 }
 
 interface windowParams {
-
-    bounds: Electron.Rectangle
-    fullscreen: boolean
-    cursor: boolean
-
+    bounds: Electron.Rectangle;
+    fullscreen: boolean;
+    cursor: boolean;
 }
 
 export class Renderer {
@@ -71,8 +67,8 @@ export class Renderer {
             this.setAccelerators();
 
             if (platform() === 'darwin') {
-                this.window.on('enter-full-screen', () => this.fullScreen = true)
-                this.window.on('leave-full-screen', () => this.fullScreen = false)
+                this.window.on('enter-full-screen', () => this.fullScreen = true);
+                this.window.on('leave-full-screen', () => this.fullScreen = false);
             }
 
             this.window.on('close', () => {
@@ -80,9 +76,9 @@ export class Renderer {
                     this.settings.destroy();
                     this.settings = null;
                 }
-            })
+            });
         })
-            .on('window-all-closed', () => { app.quit() })
+        .on('window-all-closed', () => { app.quit(); });
     }
 
     /** Create a new renderer window. */
@@ -105,13 +101,12 @@ export class Renderer {
         });
 
         process.nextTick(() => this.loadSettings());
-
     }
 
     /**
      * Inject a JavaScript code into the renderer process to patch events and add some features.
      * @param script Type of script to be injected.
-     * */
+     */
     private async injectJSCode(script: 'all' | 'patchs' | 'titlebar' = 'all') {
         try {
             if (this.jsic === '') {
@@ -517,27 +512,20 @@ export class Renderer {
 
 
     public setMaxRes(params: { width: number, height: number, reload: boolean }) {
-
         const { width, height, reload } = params;
-
         this.localStorageQuery('set', 'maxRes', { width, height });
-
         if (reload) {
             this.setResEmulator(width, height);
             this.window.webContents.reload();
         } else this.updateWindowParams();
-
     }
 
     /** Emulate a screen with assigned parameters */
     private setResEmulator(emuWidth: number = 3840, emuHeight: number = 2160) {
-
         // Delete all listeners.
         this.window.removeAllListeners('resize');
-
         // Performs an initial calculation.
         this.calcEmulatedDisplay(emuWidth, emuHeight);
-
         // Add a listener to the window to recalculate the emulator.
         this.window.on('resize', () => {
             this.calcEmulatedDisplay(emuWidth, emuHeight);
@@ -546,12 +534,9 @@ export class Renderer {
     }
 
     private calcEmulatedDisplay(emuWidth: number, emuHeight: number) {
-
         // Get the current window size.
         const [width, height] = this.window.getSize();
-
         this.window.webContents.disableDeviceEmulation();
-
         this.window.webContents.enableDeviceEmulation({
             screenSize: { width: emuWidth, height: emuHeight },
             viewSize: { width: width / emuWidth, height: height / emuHeight },
@@ -559,8 +544,7 @@ export class Renderer {
             screenPosition: 'mobile',
             viewPosition: { x: 0.5, y: 0.5 },
             deviceScaleFactor: 0
-        })
-
+        });
     }
 
     /**
@@ -569,7 +553,7 @@ export class Renderer {
     private setAccelerators() {
 
         // Register a local shortcut to toggle the settings window.
-        electronLocalshortcut.register(this.window, 'ctrl+s', () => {
+        electronLocalshortcut.register(this.window, 'CommandOrControl+S', () => {
             if (this.settings) {
                 this.settings.destroy();
                 this.settings = null;
@@ -579,17 +563,17 @@ export class Renderer {
         });
 
         // Toggle full-screen mode for the renderer window.
-        electronLocalshortcut.register(this.window, 'ctrl+f', () => {
+        electronLocalshortcut.register(this.window, 'CommandOrControl+F', () => {
             this.fullScreen = !this.window.isFullScreen();
         });
 
         // Toggle the DevTools.
-        //electronLocalshortcut.register(this.window, 'ctrl+d', () => {
+        //electronLocalshortcut.register(this.window, 'CommandOrControl+D', () => {
         //    this.window.webContents.toggleDevTools();
         //});
 
         // Toggle cursor visibility.
-        electronLocalshortcut.register(this.window, 'ctrl+a', () => {
+        electronLocalshortcut.register(this.window, 'CommandOrControl+A', () => {
             this.cursor = null;
         });
     }
@@ -611,25 +595,23 @@ export class Renderer {
 
             let query = 'localStorage.';
 
-            if (type === 'get') query += `getItem('${key}')`
+            if (type === 'get') query += `getItem('${key}')`;
             else if (type === 'set') {
 
                 if (typeof value === 'object') value = `'${JSON.stringify(value)}'`;
                 query += `setItem('${key}', ${value})`;
 
-            } else if (type === 'delete') query += `removeItem('${key}')`
-            else if (type === 'clear') query += 'clear()'
+            } else if (type === 'delete') query += `removeItem('${key}')`;
+            else if (type === 'clear') query += 'clear()';
             else if (type === 'raw') query = data as string;
 
             const unresolvedQuery = this.window.webContents.executeJavaScript(query);
 
             if (type === 'get') {
                 try {
-
                     const resolver = await unresolvedQuery;
                     const parsed = JSON.parse(resolver);
                     return Promise.resolve(parsed);
-
                 } catch (error) {
                     return unresolvedQuery;
                 }
@@ -639,17 +621,14 @@ export class Renderer {
     }
 
     private listenWindowMoveEvents() {
-        this.window.on('moved', () => { this.updateWindowParams() })
+        this.window.on('moved', () => { this.updateWindowParams(); });
     }
 
     private getWindowParams() {
-
         const bounds = this.window.getBounds();
         const fullscreen = this.window.isFullScreen();
         const cursor = this._cursor ? true : false;
-
         return { bounds, fullscreen, cursor } as windowParams;
-
     }
 
     private updateWindowParams() {
@@ -661,43 +640,36 @@ export class Renderer {
         this.localStorageQuery('set', 'windowParams', params);
     }
     
-
     private loadSettings() {
-
         this.localStorageQuery('get', 'windowParams')
             .then((data: windowParams) => {
-
-                this.window.setBounds(data.bounds)
+                this.window.setBounds(data.bounds);
                 this.window.fullScreen = data.fullscreen;
                 this.cursor = data.cursor;
-
                 this.window.on('resized', () => {
                     this.updateWindowParams();
                 });
-
             });
 
         this.localStorageQuery('get', 'maxRes')
             .then((data: resolution) => {
-
-                // If the usen has not set a resolution, set the default one.
+                // If the user has not set a resolution, set the default one.
                 if (!data) this.setResEmulator();
                 else {
-                    if (data.width && data.height) this.setResEmulator(data.width, data.height)
+                    if (data.width && data.height) this.setResEmulator(data.width, data.height);
                     else this.setResEmulator();
                 }
             })
             .catch(err => {
                 // If the data is invalid or not available, set the default resolution.
                 this.setResEmulator(3840, 2160);
-            })
-
+            });
     }
 
     /**
-     * Load new user connection **and reload the renderer process**.\
-     * If value is '\_\_DFT\_\_', the default YouTube TV url will be loaded.
-     * */
+     * Load new user connection **and reload the renderer process**.
+     * If value is '__DFT__', the default YouTube TV url will be loaded.
+     */
     public set url(value: string) {
         let url = value;
         if (typeof value !== 'string') return;
@@ -710,13 +682,12 @@ export class Renderer {
             })
             .catch(async () => {
 
-                ipcMain.once('restored', () => { this.url = value });
+                ipcMain.once('restored', () => { this.url = value; });
 
                 this.injectJSCode('titlebar');
                 const offline = await readFile(join(__dirname, 'offline_banner.js'), { encoding: 'utf8' });
                 this.window.webContents.executeJavaScript(offline);
-
-            })
+            });
     }
 
     public set urlByDial(value: string) {
@@ -732,13 +703,12 @@ export class Renderer {
             // This should never happen...
             .catch(async () => {
 
-                ipcMain.once('restored', () => { this.urlByDial = value });
+                ipcMain.once('restored', () => { this.urlByDial = value; });
 
                 this.injectJSCode('titlebar');
                 const offline = await readFile(join(__dirname, 'offline_banner.js'), { encoding: 'utf8' });
                 this.window.webContents.executeJavaScript(offline);
-
-            })
+            });
     }
 
     public set fullScreen(value: boolean | null) {
@@ -754,7 +724,7 @@ export class Renderer {
 
     /** Toggle cursor visibility */
     public set cursor(value: boolean | null) {
-        if (typeof value !== 'boolean') this._cursor = !this._cursor
+        if (typeof value !== 'boolean') this._cursor = !this._cursor;
         else this._cursor = value;
 
         if (this._cursor) {
@@ -767,5 +737,4 @@ export class Renderer {
 
         this.updateWindowParams();
     }
-
 }
