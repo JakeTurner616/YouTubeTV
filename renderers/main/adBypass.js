@@ -116,7 +116,7 @@
     function startObserver() {
       const observer = new MutationObserver(mutations => {
         try {
-          const countdownEl = document.querySelector('.ytlr-skip-ad-timer-renderer__countdown');
+          const countdownEl = document.querySelector('.ytLrSkipAdTimerRendererCountdown');
           if (countdownEl) {
             log("Ad detected: Countdown present (" + countdownEl.innerText + ").");
             // Immediately mute the video to prevent any audio popping.
