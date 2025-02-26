@@ -46,34 +46,28 @@
     const target = document.activeElement || document.body;
     
     if (isPressed) {
-      // Button is being pressed or held
       const currentTime = Date.now();
-      
-      // If this is the first press or it's time for a repeat
-      if (!keyHoldState[key] || 
-          (currentTime - keyHoldState[key].startTime >= REPEAT_DELAY && 
-           currentTime - keyHoldState[key].lastRepeat >= REPEAT_RATE)) {
-        
-        // First time press or time to repeat
+      if (
+        !keyHoldState[key] ||
+        (currentTime - keyHoldState[key].startTime >= REPEAT_DELAY &&
+         currentTime - keyHoldState[key].lastRepeat >= REPEAT_RATE)
+      ) {
         log("[Controller Event] Simulating keydown for: " + key);
-        
-        // Create and dispatch the keydown event
         const keydownEvent = new KeyboardEvent("keydown", {
           key: key,
           code: key,
-          keyCode: key === "Enter" ? 13 : key === "Escape" ? 27 :
-                   key === "ArrowUp" ? 38 : key === "ArrowDown" ? 40 :
-                   key === "ArrowLeft" ? 37 : key === "ArrowRight" ? 39 :
-                   key === "Backspace" ? 8 : 0,
+          keyCode:
+            key === "Enter" ? 13 : key === "Escape" ? 27 :
+            key === "ArrowUp" ? 38 : key === "ArrowDown" ? 40 :
+            key === "ArrowLeft" ? 37 : key === "ArrowRight" ? 39 :
+            key === "Backspace" ? 8 : 0,
           bubbles: true,
           cancelable: true,
           composed: true,
-          repeat: keyHoldState[key] ? true : false // Set repeat flag for subsequent events
+          repeat: keyHoldState[key] ? true : false
         });
-        
         target.dispatchEvent(keydownEvent);
         
-        // Update key hold state
         if (!keyHoldState[key]) {
           keyHoldState[key] = {
             startTime: currentTime,
@@ -84,24 +78,20 @@
         }
       }
     } else if (keyHoldState[key]) {
-      // Button has been released, send keyup event
       log("[Controller Event] Simulating keyup for: " + key);
-      
       const keyupEvent = new KeyboardEvent("keyup", {
         key: key,
         code: key,
-        keyCode: key === "Enter" ? 13 : key === "Escape" ? 27 :
-                 key === "ArrowUp" ? 38 : key === "ArrowDown" ? 40 :
-                 key === "ArrowLeft" ? 37 : key === "ArrowRight" ? 39 :
-                 key === "Backspace" ? 8 : 0,
+        keyCode:
+          key === "Enter" ? 13 : key === "Escape" ? 27 :
+          key === "ArrowUp" ? 38 : key === "ArrowDown" ? 40 :
+          key === "ArrowLeft" ? 37 : key === "ArrowRight" ? 39 :
+          key === "Backspace" ? 8 : 0,
         bubbles: true,
         cancelable: true,
         composed: true
       });
-      
       target.dispatchEvent(keyupEvent);
-      
-      // Clear the hold state for this key
       delete keyHoldState[key];
     }
   }
@@ -110,7 +100,6 @@
   // Gamepad Input Handling and Key Simulation
   // ---------------------------------------
   // Mapping from gamepad button indices to keyboard keys.
-  // (Note: index 3 is used to focus search.)
   const buttonMapping = {
     0: "Enter",      // A button
     1: "Escape",     // B button
@@ -129,46 +118,41 @@
 
   // Object to track the previous pressed state of each button per gamepad.
   const buttonState = {};
-  
-  // Object to track the previous axis values per gamepad
+  // Object to track the previous axis values per gamepad.
   const axisState = {};
   
-  // Joystick configuration
-  const DEADZONE = 0.5;            // Ignore small movements below this threshold
-  const AXIS_ACTIVATION_DELAY = 200; // Minimum time between axis activations (ms)
-  let lastAxisActivation = {};     // Timestamp of last axis activation
-  
-  // Track active joystick directions
+  // Joystick configuration.
+  const DEADZONE = 0.5;            
+  const AXIS_ACTIVATION_DELAY = 200; 
+  let lastAxisActivation = {};
+  // Track active joystick directions.
   let activeAxisDirections = {};
 
-  // Variable to track the currently selected gamepad (highest index wins).
+  // -------------------------------
+  // Track only the latest controller.
+  // -------------------------------
   let currentGamepadIndex = null;
-  
-  // Flag to ensure only one polling instance is running
   let isPolling = false;
-  
-  // Flag to track if we're connected to the gamepad API
   let isConnected = false;
 
-  // Clear any existing event listeners to prevent duplication
+  // Clear any existing event listeners to prevent duplication.
   const oldListeners = window._gamepadListeners || [];
   oldListeners.forEach(listener => {
     window.removeEventListener('gamepadconnected', listener.connect);
     window.removeEventListener('gamepaddisconnected', listener.disconnect);
   });
 
-  // Store new listeners for potential future cleanup
+  // Updated connect listener: always set the current gamepad to the newly connected one.
   const connectListener = function(e) {
     const gp = e.gamepad;
     log("Gamepad connected: index=" + gp.index + ", id=" + gp.id +
         ", buttons=" + gp.buttons.length + ", axes=" + gp.axes.length);
     
-    if (currentGamepadIndex === null || gp.index > currentGamepadIndex) {
-      currentGamepadIndex = gp.index;
-      log("Selected gamepad index updated to: " + currentGamepadIndex);
-    }
+    // Always update to the latest connected gamepad.
+    currentGamepadIndex = gp.index;
+    log("Selected (latest) gamepad index updated to: " + currentGamepadIndex);
     
-    // Initialize state tracking
+    // Initialize state tracking.
     buttonState[gp.index] = new Array(gp.buttons.length).fill(false);
     axisState[gp.index] = new Array(gp.axes.length).fill(0);
     lastAxisActivation[gp.index] = {};
@@ -180,8 +164,6 @@
     }
     
     isConnected = true;
-    
-    // Start polling if not already running
     if (!isPolling) {
       isPolling = true;
       requestAnimationFrame(pollGamepads);
@@ -192,14 +174,14 @@
     const gp = e.gamepad;
     log("Gamepad disconnected: index=" + gp.index + ", id=" + gp.id);
     
-    // Clean up state for this gamepad
+    // Clean up state for this gamepad.
     delete buttonState[gp.index];
     delete axisState[gp.index];
     delete lastAxisActivation[gp.index];
     delete activeAxisDirections[gp.index];
     
     if (gp.index === currentGamepadIndex) {
-      // Find a new gamepad to use if available
+      // Find a new gamepad to use if available.
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
       let newSelected = null;
       
@@ -214,7 +196,7 @@
       
       currentGamepadIndex = newSelected;
       if (newSelected !== null) {
-        log("New selected gamepad index: " + currentGamepadIndex);
+        log("New selected (latest) gamepad index: " + currentGamepadIndex);
       } else {
         log("No gamepads remaining connected");
         isConnected = false;
@@ -222,25 +204,25 @@
     }
   };
 
-  // Store listeners for potential cleanup
+  // Store new listeners for potential future cleanup.
   window._gamepadListeners = window._gamepadListeners || [];
   window._gamepadListeners.push({
     connect: connectListener,
     disconnect: disconnectListener
   });
 
-  // Add event listeners
+  // Add event listeners.
   window.addEventListener('gamepadconnected', connectListener);
   window.addEventListener('gamepaddisconnected', disconnectListener);
 
-  // Check for already connected gamepads
+  // Check for already connected gamepads.
   const initialGamepads = navigator.getGamepads ? navigator.getGamepads() : [];
   for (let i = 0; i < initialGamepads.length; i++) {
     const gp = initialGamepads[i];
     if (gp) {
       log("Already connected gamepad: index=" + gp.index + ", id=" + gp.id);
       
-      // Initialize state tracking
+      // Initialize state tracking.
       buttonState[gp.index] = new Array(gp.buttons.length).fill(false);
       axisState[gp.index] = new Array(gp.axes.length).fill(0);
       lastAxisActivation[gp.index] = {};
@@ -251,63 +233,56 @@
         activeAxisDirections[gp.index][axisIndex] = 0;
       }
       
-      if (currentGamepadIndex === null || gp.index > currentGamepadIndex) {
-        currentGamepadIndex = gp.index;
-      }
-      
+      // Use the most recently found gamepad.
+      currentGamepadIndex = gp.index;
       isConnected = true;
     }
   }
 
-  // Rate limiting for logging
+  // Rate limiting for logging.
   let lastLogTime = 0;
-  const LOG_INTERVAL = 5000; // Only log connected controllers every 5 seconds
+  const LOG_INTERVAL = 5000; // Log connected controllers every 5 seconds.
 
-  // Process joystick input with deadzone
+  // Process joystick input with deadzone.
   function processJoystick(gpIndex, axisIndex, value) {
     const prevValue = axisState[gpIndex][axisIndex];
     const axis = axisMapping[axisIndex];
     
-    if (!axis) return; // Skip unmapped axes
+    if (!axis) return; // Skip unmapped axes.
     
-    // Apply deadzone
+    // Apply deadzone.
     if (Math.abs(value) < DEADZONE) {
       value = 0;
     }
     
-    // Determine direction (-1, 0, 1)
+    // Determine direction (-1, 0, 1).
     const currentDirection = value === 0 ? 0 : (value < 0 ? -1 : 1);
     const prevDirection = activeAxisDirections[gpIndex][axisIndex];
     
-    // Only process if the direction has changed
     if (currentDirection !== prevDirection) {
-      // Handle direction change
-      
-      // Release the previous direction key if it was active
+      // Release previous key.
       if (prevDirection < 0 && axis.negative) {
         simulateKeyPress(axis.negative, false);
       } else if (prevDirection > 0 && axis.positive) {
         simulateKeyPress(axis.positive, false);
       }
       
-      // Press the new direction key if applicable
+      // Press new key.
       if (currentDirection < 0 && axis.negative) {
         simulateKeyPress(axis.negative, true);
       } else if (currentDirection > 0 && axis.positive) {
         simulateKeyPress(axis.positive, true);
       }
       
-      // Update direction state
       activeAxisDirections[gpIndex][axisIndex] = currentDirection;
     } else if (currentDirection !== 0) {
-      // Continue holding the key in the current direction
+      // Continue holding the key.
       const key = currentDirection < 0 ? axis.negative : axis.positive;
       if (key) {
         simulateKeyPress(key, true);
       }
     }
     
-    // Update axis state
     axisState[gpIndex][axisIndex] = value;
   }
 
@@ -318,7 +293,7 @@
     const currentTime = Date.now();
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
     
-    // Log connected controllers periodically instead of every frame
+    // Log connected controllers periodically.
     if (currentTime - lastLogTime > LOG_INTERVAL) {
       const connectedCount = Array.from(gamepads).filter(g => g !== null).length;
       if (connectedCount > 0) {
@@ -330,35 +305,31 @@
     if (currentGamepadIndex !== null) {
       const gp = gamepads[currentGamepadIndex];
       if (gp && buttonState[gp.index]) {
-        // Process buttons
+        // Process buttons.
         for (let index = 0; index < gp.buttons.length; index++) {
           const button = gp.buttons[index];
           const wasPressed = buttonState[gp.index][index];
           
-          // Handle button 3 (search focus) specially - trigger only on button press
+          // Special handling for button 3 (search focus).
           if (index === 3) {
             if (button.pressed && !wasPressed) {
               simulateSearchFocus();
             }
-          } 
-          // For mapped buttons, handle continuous press
-          else if (buttonMapping.hasOwnProperty(index)) {
+          } else if (buttonMapping.hasOwnProperty(index)) {
             const key = buttonMapping[index];
             if (key) {
-              // Check if state changed or button is held
               if (button.pressed !== wasPressed || button.pressed) {
                 simulateKeyPress(key, button.pressed);
               }
             }
           }
           
-          // Update button state
+          // Update button state.
           buttonState[gp.index][index] = button.pressed;
         }
         
-        // Process joystick axes
+        // Process joystick axes.
         for (let index = 0; index < gp.axes.length; index++) {
-          // Only process mapped axes
           if (axisMapping.hasOwnProperty(index)) {
             processJoystick(gp.index, index, gp.axes[index]);
           }
@@ -366,7 +337,6 @@
       }
     }
     
-    // Only continue polling if we're still connected
     if (isConnected) {
       requestAnimationFrame(pollGamepads);
     } else {
@@ -374,27 +344,28 @@
     }
   }
 
-  // Start polling if gamepads are connected
+  // Start polling if gamepads are connected.
   if (isConnected && !isPolling) {
     isPolling = true;
     requestAnimationFrame(pollGamepads);
   }
   
-  // Add a cleanup function to the window object
+  // Cleanup function.
   window._cleanupGamepadHandler = function() {
     isPolling = false;
     isConnected = false;
     
-    // Release any held keys
+    // Release any held keys.
     for (const key in keyHoldState) {
       const target = document.activeElement || document.body;
       const keyupEvent = new KeyboardEvent("keyup", {
         key: key,
         code: key,
-        keyCode: key === "Enter" ? 13 : key === "Escape" ? 27 :
-                 key === "ArrowUp" ? 38 : key === "ArrowDown" ? 40 :
-                 key === "ArrowLeft" ? 37 : key === "ArrowRight" ? 39 :
-                 key === "Backspace" ? 8 : 0,
+        keyCode:
+          key === "Enter" ? 13 : key === "Escape" ? 27 :
+          key === "ArrowUp" ? 38 : key === "ArrowDown" ? 40 :
+          key === "ArrowLeft" ? 37 : key === "ArrowRight" ? 39 :
+          key === "Backspace" ? 8 : 0,
         bubbles: true,
         cancelable: true,
         composed: true
