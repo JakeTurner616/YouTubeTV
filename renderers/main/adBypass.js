@@ -151,38 +151,56 @@
   
   // Expanded survey skip button detection
   function getSurveySkipButton() {
-    const selectors = [
-      'ytlr-skip-button-renderer[idomkey="survey-skip"]',
-      'button[aria-label*="Skip survey"]',
-      'button[class*="survey"][class*="skip"]',
-      '[data-testid="survey-skip-button"]'
-    ];
-    
-    try {
-      for (const selector of selectors) {
-        const surveySkipButton = document.querySelector(selector);
-        if (surveySkipButton && isVisible(surveySkipButton)) {
-          log(`Survey skip button found and visible using selector: ${selector}`);
-          return surveySkipButton;
-        }
+    // Primary strategy: Look for the renderer element by its unique idomkey.
+    const renderer = document.querySelector('ytlr-skip-button-renderer[idomkey="survey-skip"]');
+    if (renderer) {
+      // Try to retrieve the nested clickable button within the renderer.
+      const nestedButton = renderer.querySelector('ytlr-button');
+      if (nestedButton && isVisible(nestedButton)) {
+        log("Survey skip button found inside renderer using 'ytlr-skip-button-renderer[idomkey=\"survey-skip\"]' and nested ytlr-button.");
+        return nestedButton;
+      } else if (isVisible(renderer)) {
+        // If the nested button isn't found but the renderer itself is visible, use it as a fallback.
+        log("Survey skip renderer is visible and used as a fallback clickable element.");
+        return renderer;
       }
-      
-      // Text-based detection as fallback
-      const allButtons = document.querySelectorAll('button');
-      for (const button of allButtons) {
-        const buttonText = button.innerText || button.textContent || '';
-        if (buttonText.match(/skip survey|dismiss/i) && isVisible(button)) {
-          log(`Survey skip button found using text content match: "${buttonText}"`);
-          return button;
-        }
-      }
-      
-      return null;
-    } catch (error) {
-      log(`getSurveySkipButton error: ${error}`);
-      return null;
     }
+    
+    // Secondary strategy: Directly look for any element with an aria-label exactly matching "Skip survey".
+    const ariaLabelButton = document.querySelector('[aria-label="Skip survey"]');
+    if (ariaLabelButton && isVisible(ariaLabelButton)) {
+      log("Survey skip button found using [aria-label='Skip survey'] selector.");
+      return ariaLabelButton;
+    }
+    
+    // Tertiary strategy: Search for a formatted string element that contains the exact text "Skip survey".
+    const formattedStrings = document.querySelectorAll('yt-formatted-string');
+    for (const fs of formattedStrings) {
+      const text = (fs.innerText || fs.textContent || "").trim();
+      if (text === "Skip survey" && isVisible(fs)) {
+        // Find the nearest ancestor that is a ytlr-button (or a clickable container)
+        const parentButton = fs.closest('ytlr-button, button');
+        if (parentButton && isVisible(parentButton)) {
+          log("Survey skip button found via text match within ytlr-button.");
+          return parentButton;
+        }
+      }
+    }
+    
+    // Final fallback: Iterate through all buttons and ytlr-buttons using a text-based match.
+    const allButtons = document.querySelectorAll('button, ytlr-button');
+    for (const button of allButtons) {
+      const buttonText = (button.innerText || button.textContent || "").toLowerCase();
+      if (buttonText.match(/skip survey/) && isVisible(button)) {
+        log(`Survey skip button found using text-based match: "${buttonText}"`);
+        return button;
+      }
+    }
+    
+    log("Survey skip button not found.");
+    return null;
   }
+  
   
   // Safely hide ad elements WITHOUT hiding detection elements
   function hideAdElements() {
@@ -278,7 +296,6 @@
       }
       
       // Method 4: Check for "Ad" or "Advertisement" text in visible elements
-      // but don't use this to hide those elements since we need them for detection
       const adLabelSelectors = [
         '.ytp-ad-preview-text',
         '.ytp-ad-duration-remaining',
@@ -297,7 +314,7 @@
         }
       }
       
-      // Method 5: Look specifically for ad text but don't modify these elements
+      // Method 5: Look specifically for ad text in general containers
       const adTextIndicators = ["ad", "advertisement", "ad will end", "skip ad in", "skip ad", "video will play after ad"];
       const textContainers = document.querySelectorAll('span, div, p');
       
@@ -306,7 +323,6 @@
           const text = (container.innerText || container.textContent || '').toLowerCase();
           for (const indicator of adTextIndicators) {
             if (text.includes(indicator)) {
-              // Verify it's not a false positive (like "add to playlist", "adobe", etc.)
               const wordsInText = text.split(/\s+/);
               if (wordsInText.includes("ad") || wordsInText.includes("advertisement") || 
                   text.includes("ad will") || text.includes("skip ad")) {
@@ -318,11 +334,25 @@
         }
       }
       
-      // Method 6: Check if skip button exists (last resort)
+      // Method 6: Check if the standard skip button exists
       const skipButton = getSkipButton();
       if (skipButton) {
         log('Ad detected: Skip button is present');
         return true;
+      }
+      
+      // **New Method 7: Check for survey ad elements**
+      // This specifically looks for survey ad containers that indicate a survey is active.
+      const surveyAdSelectors = [
+        'ytlr-instream-survey-ad', 
+        'ytlr-instream-survey-ad-background-image-renderer'
+      ];
+      for (const selector of surveyAdSelectors) {
+        const surveyAdEl = document.querySelector(selector);
+        if (surveyAdEl && isVisible(surveyAdEl)) {
+          log(`Survey ad detected: Element "${selector}" is visible.`);
+          return true;
+        }
       }
       
       return false;
@@ -331,6 +361,7 @@
       return false;
     }
   }
+  
   
   let videoElement = null;
   let skipClicked = false;
